@@ -1,0 +1,699 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SSRR - Somatic Stress Response Recorder</title>
+  <style>
+    :root {
+      --bg-color: #080b10;
+      --panel-bg: #10131a;
+      --card-bg: #151922;
+      --border-color: #1f2430;
+      --text-main: #d9f4ff;
+      --text-muted: #71817f;
+      --color-green: #42d392;
+      --color-red: #e45757;
+      --color-blue: #4c8dff;
+      --color-yellow: #f0c75e;
+      --font-stack: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: var(--font-stack);
+      overflow: hidden;
+      display: flex;
+      height: 100vh;
+    }
+
+    #viewport {
+      flex: 1;
+      height: 100%;
+      position: relative;
+      background-color: var(--bg-color);
+    }
+
+    /* Columnas y paneles */
+    .controls-panel {
+      width: 420px;
+      background: var(--panel-bg);
+      border-left: 1px solid var(--border-color);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      overflow-y: auto;
+      box-sizing: border-box;
+      height: 100%;
+    }
+
+    .section-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .section-heading h2, .section-heading h3 {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      margin: 0;
+    }
+
+    /* Tarjetas de control y conexión */
+    .connection-section, .phases-section, .metrics-section, .session-info {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .connection-section h2, .phases-section h3, .metrics-section h3, .session-info h3 {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-top: 0;
+      margin-bottom: 12px;
+    }
+
+    button {
+      font-family: var(--font-stack);
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 13px;
+    }
+
+    .btn-primary, .btn-accion-principal {
+      background-color: var(--color-green);
+      color: var(--bg-color);
+      border: none;
+      padding: 12px 16px;
+      width: 100%;
+      margin-bottom: 8px;
+    }
+
+    .btn-primary:hover, .btn-accion-principal:hover {
+      background-color: #5cf5ab;
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background-color: transparent;
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      padding: 10px 16px;
+      width: 100%;
+    }
+
+    .btn-secondary:hover {
+      background-color: var(--border-color);
+    }
+
+    .camera-preview {
+      width: 100%;
+      height: 120px;
+      background-color: #000;
+      border-radius: 6px;
+      margin-top: 10px;
+      display: none;
+      object-fit: cover;
+    }
+
+    .camera-preview.active {
+      display: block;
+    }
+
+    .camera-help {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin: 6px 0 0 0;
+    }
+
+    .connection-status {
+      font-size: 12px;
+      margin-top: 10px;
+      padding: 6px 10px;
+      border-radius: 4px;
+      background-color: rgba(255,255,255,0.05);
+      border: 1px solid var(--border-color);
+      display: inline-block;
+    }
+
+    .connection-status.connected {
+      color: var(--color-green);
+      background-color: rgba(66, 211, 146, 0.1);
+      border-color: rgba(66, 211, 146, 0.2);
+    }
+
+    /* Fases de protocolo */
+    .fase-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      transition: all 0.25s ease;
+      margin-bottom: 8px;
+    }
+
+    .fase-item.active {
+      background-color: rgba(76, 141, 255, 0.1);
+      border-color: rgba(76, 141, 255, 0.2);
+    }
+
+    .phase-number {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background-color: var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .fase-item.active .phase-number {
+      background-color: var(--color-blue);
+      color: white;
+    }
+
+    .fase-item h3 {
+      font-size: 13px;
+      margin: 0;
+      color: var(--text-main);
+    }
+
+    .fase-item p {
+      font-size: 11px;
+      margin: 2px 0 0 0;
+      color: var(--text-muted);
+    }
+
+    /* Métrica de lectura autonómica */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .metric-grid > div {
+      background-color: rgba(255,255,255,0.02);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .metric-grid span {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .metric-grid strong {
+      font-size: 20px;
+      color: var(--text-main);
+      margin-top: 4px;
+    }
+
+    .metric-grid small {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-left: 2px;
+    }
+
+    .phase-info {
+      display: block;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 8px;
+      line-height: 1.4;
+      white-space: pre-line;
+    }
+
+    .panel-footer {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-align: center;
+      margin-top: auto;
+      padding-top: 16px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .panel-footer p {
+      margin: 0;
+    }
+
+    /* Visual HUD y overlays */
+    .phase-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(8, 11, 16, 0.85);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+    }
+
+    .phase-overlay.hidden {
+      display: none;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .instruction-container {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 32px;
+      width: 480px;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+
+    .instruction-container h2 {
+      font-size: 22px;
+      margin-top: 0;
+      color: var(--text-main);
+    }
+
+    .instruction-container p {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .timer-display {
+      font-size: 64px;
+      font-weight: 200;
+      margin: 20px 0;
+      font-family: monospace;
+      color: var(--color-blue);
+    }
+
+    .timer-display.warning {
+      color: var(--color-red);
+      animation: pulse 1s infinite alternate;
+    }
+
+    @keyframes pulse {
+      from { opacity: 0.6; }
+      to { opacity: 1; }
+    }
+
+    .session-hud {
+      position: absolute;
+      top: 24px;
+      left: 24px;
+      background-color: rgba(21, 25, 34, 0.85);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      backdrop-filter: blur(8px);
+      z-index: 50;
+    }
+
+    .session-hud.hidden {
+      display: none;
+    }
+
+    #hud-timer {
+      font-size: 18px;
+      font-family: monospace;
+      color: var(--color-blue);
+    }
+
+    #hud-guide {
+      font-size: 12px;
+      color: var(--text-main);
+    }
+
+    .visual-readout {
+      position: absolute;
+      bottom: 24px;
+      left: 24px;
+      background-color: rgba(21, 25, 34, 0.85);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      backdrop-filter: blur(8px);
+      z-index: 50;
+    }
+
+    .zone-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .zone-dot.low { background-color: var(--color-red); }
+    .zone-dot.media { background-color: var(--color-blue); }
+    .zone-dot.alta { background-color: var(--color-green); }
+
+    /* Tacograma panel */
+    .tacogram-panel {
+      position: absolute;
+      bottom: 24px;
+      right: 444px;
+      background-color: rgba(21, 25, 34, 0.85);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 14px;
+      width: 380px;
+      box-sizing: border-box;
+      backdrop-filter: blur(8px);
+      z-index: 50;
+    }
+
+    #tacogram {
+      width: 100%;
+      height: 80px;
+      background-color: rgba(0,0,0,0.2);
+      border-radius: 4px;
+      margin-top: 10px;
+    }
+
+    .tacogram-scale {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Dialogs / modales */
+    dialog {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      color: var(--text-main);
+      padding: 24px;
+      width: 440px;
+      box-shadow: 0 30px 60px rgba(0,0,0,0.6);
+      z-index: 200;
+    }
+
+    dialog::backdrop {
+      background-color: rgba(0,0,0,0.7);
+      backdrop-filter: blur(4px);
+    }
+
+    .report-dialog h2 {
+      margin-top: 0;
+      font-size: 18px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .dialog-close {
+      background-color: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
+      padding: 8px 14px;
+      border-radius: 6px;
+      margin-top: 16px;
+      float: right;
+    }
+
+    .dialog-close:hover {
+      color: var(--text-main);
+      background-color: var(--border-color);
+    }
+
+    /* Tabla de dashboard final */
+    .dashboard-table {
+      margin: 16px 0;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .dashboard-row {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr 1fr;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 13px;
+    }
+
+    .dashboard-row:last-child {
+      border-bottom: none;
+    }
+
+    .dashboard-head {
+      background-color: rgba(255,255,255,0.03);
+      font-weight: bold;
+      color: var(--text-muted);
+    }
+
+    .report-comparison {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .report-comparison strong {
+      color: var(--text-main);
+    }
+
+    .btn-admin-export {
+      background-color: var(--color-blue);
+      color: white;
+      border: none;
+      padding: 10px 14px;
+      border-radius: 6px;
+      width: 100%;
+      margin-top: 10px;
+      cursor: pointer;
+    }
+
+    .btn-admin-export:hover {
+      background-color: #6da2ff;
+    }
+
+    /* Stroop Overlay styling */
+    .stroop-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(8, 11, 16, 0.95);
+      z-index: 120;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .stroop-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 32px;
+      width: 420px;
+      text-align: center;
+      box-shadow: 0 30px 60px rgba(0,0,0,0.6);
+    }
+
+    .stroop-card h2 {
+      font-size: 48px;
+      font-weight: 800;
+      margin: 24px 0;
+      letter-spacing: 2px;
+    }
+
+    .stroop-options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 24px;
+    }
+
+    .stroop-options button {
+      padding: 14px;
+      font-size: 14px;
+      background-color: #1a1e29;
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+    }
+
+    .stroop-options button:hover {
+      background-color: var(--border-color);
+      transform: scale(1.02);
+    }
+
+    .eyebrow {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--text-muted);
+      margin: 0;
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <div id="viewport"></div>
+
+  <!-- Overlay de instrucciones de fase -->
+  <div id="phase-overlay" class="phase-overlay hidden">
+    <div class="instruction-container">
+      <h2 id="instruction-title">Esperando conexión...</h2>
+      <p id="instruction-text"></p>
+      <div id="timer-display" class="timer-display">--:--</div>
+      <div id="training-config" class="training-config hidden"></div>
+    </div>
+  </div>
+
+  <div id="session-hud" class="session-hud hidden" aria-live="polite">
+    <strong id="hud-timer">00:00</strong>
+    <span id="hud-guide">Respira naturalmente</span>
+  </div>
+
+  <div class="visual-readout">
+    <span id="coherence-zone" class="zone-dot low"></span>
+    <strong id="coherence-label">Baja coherencia</strong>
+    <span id="coherence-score">0.5 CS</span>
+  </div>
+
+  <section class="tacogram-panel" aria-label="Tacograma en tiempo real">
+    <div class="section-heading">
+      <h2>Tacograma RR</h2>
+      <span>últimos 50 intervalos</span>
+    </div>
+    <canvas id="tacogram" aria-label="Gráfico de intervalos RR"></canvas>
+    <div class="tacogram-scale">
+      <span>RR (ms)</span>
+      <span id="rr-range">--</span>
+    </div>
+  </section>
+
+  <!-- Estación de registro psicofisiológico SSRR -->
+  <aside class="controls-panel">
+    <div class="connection-section">
+      <h2>Control de Dispositivo</h2>
+      <button id="btn-conectar" class="btn-primary btn-connect">Conectar sensor BLE</button>
+      <button id="btn-camara" class="btn-secondary" type="button">Usar cámara como sensor</button>
+      <video id="camera-preview" class="camera-preview" autoplay muted playsinline></video>
+      <p class="camera-help">Coloca la yema del dedo sobre la cámara y el flash.</p>
+      <div id="status-conexion" class="connection-status">Desconectado</div>
+    </div>
+
+    <div class="phases-section">
+      <h3>Fases del protocolo</h3>
+      <div id="fase-basal" class="fase-item">
+        <span class="phase-number">1</span>
+        <div>
+          <h3>Línea base</h3>
+          <p>60s · Reposo absoluto en silencio</p>
+        </div>
+      </div>
+      <div id="fase-estres" class="fase-item">
+        <span class="phase-number">2</span>
+        <div>
+          <h3>Estresor atencional</h3>
+          <p>60s · Stroop Color Test activo</p>
+        </div>
+      </div>
+      <div id="fase-recuperacion" class="fase-item">
+        <span class="phase-number">3</span>
+        <div>
+          <h3>Amortiguación vagal</h3>
+          <p>60s · Respiración guiada (0.1 Hz)</p>
+        </div>
+      </div>
+    </div>
+
+    <section class="metrics-section" aria-label="Lectura autonómica">
+      <div class="section-heading">
+        <h3>Lectura autonómica</h3>
+      </div>
+      <div class="metric-grid">
+        <div>
+          <span>RMSSD (vagal)</span>
+          <strong id="txt-rmssd">--</strong>
+          <small>ms</small>
+        </div>
+        <div>
+          <span>Stress Index (SI)</span>
+          <strong id="txt-si">--</strong>
+        </div>
+        <div>
+          <span>Frecuencia (BPM)</span>
+          <strong id="txt-bpm">--</strong>
+        </div>
+        <div>
+          <span>Intervalo RR</span>
+          <strong id="txt-rr">--</strong>
+          <small>ms</small>
+        </div>
+      </div>
+    </section>
+
+    <div class="session-info">
+      <h3>Control de muestreo</h3>
+      <button id="btn-accion-sesion" class="btn-accion-principal" type="button">Iniciar medición basal</button>
+      <output id="phase-info" class="phase-info">Conecta un sensor para comenzar.</output>
+    </div>
+
+    <footer class="panel-footer">
+      <p><strong>Protocolo SSRR-UAI</strong><br />4 segundos inhalar · 6 segundos exhalar</p>
+    </footer>
+  </aside>
+
+  <!-- Modales / diálogos -->
+  <dialog id="results-dialog" class="report-dialog">
+    <h2>Resultados de Muestreo</h2>
+    <div id="results-content"></div>
+    <button class="dialog-close" type="button">Cerrar</button>
+  </dialog>
+
+  <dialog id="history-dialog" class="report-dialog">
+    <h2>Historial de Sesiones</h2>
+    <div id="history-summary"></div>
+    <canvas id="history-chart" style="width:100%; height:150px; margin-top:10px;"></canvas>
+    <button class="dialog-close" type="button">Cerrar</button>
+  </dialog>
+
+  <dialog id="info-dialog" class="report-dialog">
+    <h2 id="info-title">Información</h2>
+    <p id="info-text"></p>
+    <button class="dialog-close" type="button">Cerrar</button>
+  </dialog>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
