@@ -317,9 +317,43 @@
       to { opacity: 1; }
     }
 
+    .app-title {
+      position: absolute;
+      top: 22px;
+      left: 24px;
+      z-index: 40;
+      max-width: 480px;
+      pointer-events: none;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+    }
+
+    .app-title h1 {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 700;
+      line-height: 1.3;
+      color: var(--text-main);
+    }
+
+    .app-title .app-tagline {
+      display: block;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .app-title .app-meta {
+      display: block;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
     .session-hud {
       position: absolute;
-      top: 24px;
+      top: 96px;
       left: 24px;
       background-color: rgba(21, 25, 34, 0.85);
       border: 1px solid var(--border-color);
@@ -568,6 +602,12 @@
 
   <div id="viewport"></div>
 
+  <div class="app-title">
+    <h1>Estación de Registro Psicofisiológico de Campo</h1>
+    <span class="app-tagline">Somatic Stress Response Recorder</span>
+    <span class="app-meta">Prototipo 01 · Taller de Prototipos</span>
+  </div>
+
   <!-- Overlay de instrucciones de fase -->
   <div id="phase-overlay" class="phase-overlay hidden">
     <div class="instruction-container">
@@ -666,6 +706,7 @@
     <div class="session-info">
       <h3>Control de muestreo</h3>
       <button id="btn-accion-sesion" class="btn-accion-principal" type="button">Iniciar medición basal</button>
+      <button id="btn-exportar-directo" class="btn-secondary" style="margin-top: 8px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background-color: #243142; color: #d9f4ff; border: 1px solid #1f2430; padding: 10px 12px;" type="button">📥 Exportar CSV Acumulado</button>
       <output id="phase-info" class="phase-info">Conecta un sensor para comenzar.</output>
     </div>
 
@@ -697,3 +738,4 @@
   <script type="module" src="main.js"></script>
 </body>
 </html>
+

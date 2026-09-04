@@ -708,7 +708,6 @@ function mostrarDashboardFinal(registro = registroHistorial.at(-1)) {
       `).join("")}
     </div>`;
   }
-  document.querySelector("#btn-exportar-muestreo")?.addEventListener("click", exportarMuestreoCSV);
   document.querySelector("#results-dialog")?.showModal();
 }
 
@@ -1043,6 +1042,9 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  const botonExportarDirecto = document.querySelector("#btn-exportar-directo");
+  if (botonExportarDirecto) botonExportarDirecto.addEventListener("click", exportarMuestreoCSV);
+
   const textosInformativos = {
     coherencia: ["Coherencia cardíaca", "Estado de sincronización fisiológica donde el ritmo cardíaco se vuelve una onda armónica y fluida."],
     rr: ["Intervalo RR", "El tiempo en milisegundos entre cada latido consecutivo del corazón."],
@@ -1062,21 +1064,25 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  document.querySelector(".dialog-close")?.addEventListener("click", () => dialogoInfo?.close());
+  document.querySelector("#info-dialog .dialog-close")?.addEventListener("click", () => dialogoInfo?.close());
   document.querySelectorAll(".report-dialog .dialog-close").forEach((boton) => {
-    boton.addEventListener("click", () => {
-      const dialogo = boton.closest("dialog");
-      dialogo?.close();
-      if (dialogo?.id !== "results-dialog") return;
-      faseActual = estadoFases.ESPERA;
-      actualizarBotonesPhase();
-      intervalosRR.length = 0;
-      intervalosRR.push(inputA, inputB);
-      historialTacograma.length = 0;
-      historialTacograma.push(inputA, inputB);
-      rmssd = 0;
-      actualizarVisualizacionHRV();
-    });
+    boton.addEventListener("click", () => boton.closest("dialog")?.close());
+  });
+
+  // Se escucha el evento nativo "close" (no solo el clic en "Cerrar") para que
+  // el reinicio de estado ocurra sin importar cómo se cierre el diálogo (Esc incluida)
+  // y así nunca se quede la sesión bloqueada en la fase de resultados.
+  document.querySelector("#results-dialog")?.addEventListener("close", () => {
+    faseActual = estadoFases.ESPERA;
+    document.querySelector("#session-hud")?.classList.add("hidden");
+    document.querySelector("#phase-overlay")?.classList.add("hidden");
+    intervalosRR.length = 0;
+    intervalosRR.push(inputA, inputB);
+    historialTacograma.length = 0;
+    historialTacograma.push(inputA, inputB);
+    rmssd = 0;
+    actualizarBotonesPhase();
+    actualizarVisualizacionHRV();
   });
 
   // Inicialización de datos

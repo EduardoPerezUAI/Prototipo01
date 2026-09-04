@@ -1,0 +1,11 @@
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
+
+# Configuración local de VS Code e historial
+.vscode/
+.history/
+*.log
+
+# Archivos temporales de Live Server o compilación
+.live-server/
