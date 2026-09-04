@@ -33,6 +33,8 @@ let frecuenciaLatido = 1000 / mediaRRVisual;
 let frecuenciaCoherente = 0;
 let dispersionRR = 0;
 let pulsoRadial = 0;
+let siVisual = null;
+let siFiltroInicializado = false;
 
 // ======================================================
 // 02 — ESCENA: ORBE RESPIRATORIO
@@ -112,7 +114,7 @@ function calcularRMSSD() {
 }
 
 function calcularBaevskySI() {
-  if (!intervalosRR.length) return 0;
+  if (intervalosRR.length < 10) return 0;
   const intervalosEnSegundos = intervalosRR.map((intervalo) => intervalo / 1000);
   const bins = new Map();
   intervalosEnSegundos.forEach((intervalo) => {
@@ -124,8 +126,9 @@ function calcularBaevskySI() {
   const [indiceModa, frecuenciaModa] = ordenados[0];
   const moda = (indiceModa + 0.5) * 0.05;
   const amplitudModa = (frecuenciaModa / intervalosEnSegundos.length) * 100;
-  const rango = Math.max(...intervalosEnSegundos) - Math.min(...intervalosEnSegundos);
-  return moda > 0 && rango > 0 ? amplitudModa / (2 * moda * rango) : 0;
+  const rangoRaw = Math.max(...intervalosEnSegundos) - Math.min(...intervalosEnSegundos);
+  const rango = Math.max(rangoRaw, 0.06);
+  return moda > 0 ? amplitudModa / (2 * moda * rango) : 0;
 }
 
 function calcularCoherenciaRR() {
@@ -168,6 +171,17 @@ function actualizarTendenciaBiometrica() {
   rmssd = calcularRMSSD();
   factorSomaticoObjetivo = calcularCoherenciaRR();
   deltaRR = Math.abs(inputA - inputB);
+
+  const siNuevo = calcularBaevskySI();
+  if (siNuevo > 0) {
+    if (!siFiltroInicializado) {
+      siVisual = siNuevo; // Arranca directamente en el primer valor real calculado, sin anclaje artificial
+      siFiltroInicializado = true;
+    } else {
+      // Filtro de paso bajo (15% de reactividad) para evitar saltos erráticos del SI en pantalla
+      siVisual = (0.85 * siVisual) + (0.15 * siNuevo);
+    }
+  }
 }
 
 function registrarIntervaloRR(intervalo) {
@@ -215,7 +229,7 @@ function actualizarVisualizacionHRV() {
   escribirTexto("#metric-rr", Math.round(mediaRRVisual));
   escribirTexto("#txt-rmssd", rmssd.toFixed(1));
   escribirTexto("#metric-rmssd", rmssd.toFixed(1));
-  escribirTexto("#txt-si", calcularBaevskySI().toFixed(2));
+  escribirTexto("#txt-si", siVisual === null ? "--" : siVisual.toFixed(1));
 
   const total = Object.values(tiempoZonas).reduce((suma, valor) => suma + valor, 0);
   const idsZona = { baja: "low", media: "medium", alta: "high" };
@@ -533,6 +547,7 @@ function guardarHistorial() {
 }
 
 function iniciarEvaluacionBasal() {
+  if (aclimatandose) return;
   if (faseActual !== estadoFases.ESPERA && faseActual !== estadoFases.RESULTADOS) return;
 
   // MODO SIMULACIÓN AUTOMÁTICO: Si no hay hardware activo (por ejemplo, en el Integrated Browser de VS Code),
@@ -650,6 +665,14 @@ function iniciarStroop() {
   const colores = { ROJO: "#e45757", VERDE: "#42d392", AZUL: "#4c8dff", AMARILLO: "#f0c75e" };
   const palabra = document.querySelector("#stroop-word");
   const opciones = document.querySelector("#stroop-options");
+  const mezclarArray = (array) => {
+    const copia = [...array];
+    for (let indice = copia.length - 1; indice > 0; indice--) {
+      const indiceAleatorio = Math.floor(Math.random() * (indice + 1));
+      [copia[indice], copia[indiceAleatorio]] = [copia[indiceAleatorio], copia[indice]];
+    }
+    return copia;
+  };
   const siguiente = () => {
     const nombres = Object.keys(colores);
     const texto = nombres[Math.floor(Math.random() * nombres.length)];
@@ -661,7 +684,8 @@ function iniciarStroop() {
       palabra.style.color = colores[tinta];
     }
     if (opciones) {
-      opciones.innerHTML = nombres.map((nombre) => `<button type="button" data-color="${nombre}">${nombre}</button>`).join("");
+      // Orden de los botones aleatorio en cada ronda para que no se puedan memorizar posiciones
+      opciones.innerHTML = mezclarArray(nombres).map((nombre) => `<button type="button" data-color="${nombre}">${nombre}</button>`).join("");
     }
   };
   if (opciones) {
@@ -786,19 +810,22 @@ function actualizarBotonesPhase() {
   const phaseInfo = document.querySelector("#phase-info");
   const estaConectado = Boolean(caracteristicaFrecuenciaCardiaca || camaraActiva);
   if (btnAccion) {
-    btnAccion.disabled = faseActual === estadoFases.BASAL || faseActual === estadoFases.ESTRESANTE || faseActual === estadoFases.RECUPERACION;
+    btnAccion.disabled = aclimatandose || faseActual === estadoFases.BASAL || faseActual === estadoFases.ESTRESANTE || faseActual === estadoFases.RECUPERACION;
   }
   [btn1, btn2, btn3].forEach((btn) => btn?.classList.remove("active"));
   if (faseActual === estadoFases.BASAL) btn1?.classList.add("active");
   if (faseActual === estadoFases.ESTRESANTE) btn2?.classList.add("active");
   if (faseActual === estadoFases.RECUPERACION) btn3?.classList.add("active");
   if (btnAccion) {
-    btnAccion.textContent = faseActual === estadoFases.BASAL ? "Grabando línea base (60s)..." :
+    btnAccion.textContent = aclimatandose ? "Estabilizando señal (Espera 10s)..." :
+                            faseActual === estadoFases.BASAL ? "Grabando línea base (60s)..." :
                             faseActual === estadoFases.ESTRESANTE ? "Ejecutando Stroop Test..." :
                             faseActual === estadoFases.RECUPERACION ? "Respirando (0.1 Hz)..." : "Iniciar medición basal";
   }
   if (phaseInfo) {
-    if (faseActual === estadoFases.ESPERA) {
+    if (aclimatandose) {
+      phaseInfo.textContent = "Estabilizando señal, espera unos segundos...";
+    } else if (faseActual === estadoFases.ESPERA) {
       phaseInfo.textContent = estaConectado ? "Listo para iniciar sesión" : "Listo para iniciar (Simulador automático activo)";
     } else if (faseActual === estadoFases.BASAL) {
       phaseInfo.textContent = `RMSSD: ${rmssd.toFixed(1)} ms | SI: ${calcularBaevskySI().toFixed(2)}`;
@@ -822,6 +849,8 @@ let cuadroCamara = null;
 let videoCamara = null;
 let muestrasPPG = [];
 let ultimaCrestaPPG = 0;
+let aclimatandose = false;
+let temporizadorAclimatacion = null;
 
 const botonConectar = document.querySelector("#btn-conectar");
 const botonCamara = document.querySelector("#btn-camara");
@@ -839,6 +868,16 @@ function actualizarEstadoBluetooth(estado, conectado = false) {
     statusConexion?.classList.remove("connected");
   }
   actualizarBotonesPhase();
+}
+
+function iniciarBufferAclimatacion() {
+  clearTimeout(temporizadorAclimatacion);
+  aclimatandose = true;
+  actualizarBotonesPhase();
+  temporizadorAclimatacion = setTimeout(() => {
+    aclimatandose = false;
+    actualizarBotonesPhase();
+  }, 10000);
 }
 
 async function iniciarCamaraPPG() {
@@ -883,6 +922,7 @@ async function iniciarCamaraPPG() {
       botonCamara.onclick = detenerCamaraPPG;
     }
     actualizarEstadoBluetooth("Cámara activa · coloca el dedo sobre el lente", true);
+    iniciarBufferAclimatacion();
     leerPulsoCamara();
   } catch (error) {
     detenerCamaraPPG();
@@ -1000,6 +1040,7 @@ async function conectarSensorCardiaco() {
     caracteristicaFrecuenciaCardiaca.addEventListener("characteristicvaluechanged", decodificarMedicionFrecuenciaCardiaca);
     actualizarEstadoBluetooth(`✓ ${dispositivoBluetooth.name || "Coospo H6M"}`, true);
     actualizarLecturaBiometrica();
+    iniciarBufferAclimatacion();
   } catch (error) {
     caracteristicaFrecuenciaCardiaca = null;
     const mensajes = {
@@ -1081,6 +1122,8 @@ document.addEventListener("DOMContentLoaded", () => {
     historialTacograma.length = 0;
     historialTacograma.push(inputA, inputB);
     rmssd = 0;
+    siVisual = null;
+    siFiltroInicializado = false;
     actualizarBotonesPhase();
     actualizarVisualizacionHRV();
   });
