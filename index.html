@@ -597,6 +597,7 @@
       }
     }
   </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -707,6 +708,7 @@
       <h3>Control de muestreo</h3>
       <button id="btn-accion-sesion" class="btn-accion-principal" type="button">Iniciar medición basal</button>
       <button id="btn-exportar-directo" class="btn-secondary" style="margin-top: 8px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background-color: #243142; color: #d9f4ff; border: 1px solid #1f2430; padding: 10px 12px;" type="button">📥 Exportar CSV Acumulado</button>
+      <button id="btn-ver-grafico-sidebar" class="btn-secondary" style="margin-top: 8px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background-color: #243142; color: #d9f4ff; border: 1px solid #1f2430; padding: 10px 12px;" type="button">📊 Ver Comparativa</button>
       <output id="phase-info" class="phase-info">Conecta un sensor para comenzar.</output>
     </div>
 
@@ -719,6 +721,10 @@
   <dialog id="results-dialog" class="report-dialog">
     <h2>Resultados de Muestreo</h2>
     <div id="results-content"></div>
+    <button type="button" class="btn-primary" id="btn-ver-grafico" style="margin-top: 10px; background-color: var(--color-blue); color: white;">📊 Visualizar Comparativa</button>
+    <div style="position: relative; height:220px; width:100%; margin-top: 15px;">
+      <canvas id="grafico-tendencia-sesion"></canvas>
+    </div>
     <button class="dialog-close" type="button">Cerrar</button>
   </dialog>
 

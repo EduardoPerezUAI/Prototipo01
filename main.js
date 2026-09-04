@@ -523,6 +523,7 @@ let acumuladoCS = 0;
 let tiempoCS = 0;
 let ultimoTiempoSesion = 0;
 let ultimoBloqueLogro = 0;
+let chartInstancia = null;
 const PACER_FRECUENCIA = 0.1;
 const PACER_CICLO_TOTAL = 1 / PACER_FRECUENCIA;
 const PACER_INHALACION = 4;
@@ -755,6 +756,101 @@ function exportarMuestreoCSV() {
   enlace.download = "Muestreo_Duelo_Somatico_UAI.csv";
   enlace.click();
   URL.revokeObjectURL(enlace.href);
+}
+
+function renderizarGraficoComparativo() {
+  const lienzo = document.querySelector("#grafico-tendencia-sesion");
+  if (!lienzo || typeof Chart === "undefined") return;
+
+  if (chartInstancia) chartInstancia.destroy();
+
+  // Últimas 10 sesiones (mismo tope que usa el historial en mostrarHistorialCompleto).
+  // Si no hay ninguna sesión guardada, se grafica la sesión activa con los valores en memoria.
+  const sesiones = registroHistorial.length
+    ? registroHistorial.slice(-10)
+    : [{ id: "Sesión actual", rmssdBasal, siBasal, rmssdEstresante, siEstresante, rmssdRecuperacion, siRecuperacion }];
+
+  const COLOR_RMSSD_PREVIA = "rgba(76, 141, 255, 0.35)";
+  const COLOR_SI_PREVIA = "rgba(228, 87, 87, 0.35)";
+  const COLOR_DESTACADO = "#f0c75e";
+
+  const datasets = sesiones.flatMap((sesion, indice) => {
+    const esUltima = indice === sesiones.length - 1;
+    const nombreSesion = sesion.id || `Sesión ${indice + 1}`;
+    return [
+      {
+        // Línea sólida = RMSSD (tono vagal)
+        label: `RMSSD · ${nombreSesion}`,
+        data: [sesion.rmssdBasal || 0, sesion.rmssdEstresante || 0, sesion.rmssdRecuperacion || 0],
+        borderColor: esUltima ? COLOR_DESTACADO : COLOR_RMSSD_PREVIA,
+        backgroundColor: esUltima ? COLOR_DESTACADO : COLOR_RMSSD_PREVIA,
+        borderWidth: esUltima ? 3 : 1.5,
+        pointStyle: "circle",
+        pointRadius: esUltima ? 4 : 2,
+        tension: 0.3,
+        yAxisID: "yRmssd",
+        destacar: esUltima,
+        metrica: "RMSSD",
+      },
+      {
+        // Línea punteada = Stress Index (Baevsky)
+        label: `SI · ${nombreSesion}`,
+        data: [sesion.siBasal || 0, sesion.siEstresante || 0, sesion.siRecuperacion || 0],
+        borderColor: esUltima ? COLOR_DESTACADO : COLOR_SI_PREVIA,
+        backgroundColor: esUltima ? COLOR_DESTACADO : COLOR_SI_PREVIA,
+        borderWidth: esUltima ? 3 : 1.5,
+        borderDash: [6, 4],
+        pointStyle: "triangle",
+        pointRadius: esUltima ? 5 : 2,
+        tension: 0.3,
+        yAxisID: "ySi",
+        destacar: esUltima,
+        metrica: "SI",
+      },
+    ];
+  });
+
+  chartInstancia = new Chart(lienzo, {
+    type: "line",
+    data: {
+      labels: ["Línea Base", "Stroop Test (Estrés)", "Respiración (Recuperación)"],
+      datasets,
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        yRmssd: {
+          type: "linear",
+          position: "left",
+          title: { display: true, text: "RMSSD (ms) — línea sólida ●", color: "#4c8dff" },
+          ticks: { color: "#4c8dff" },
+        },
+        ySi: {
+          type: "linear",
+          position: "right",
+          title: { display: true, text: "Stress Index — línea punteada ▲", color: "#e45757" },
+          ticks: { color: "#e45757" },
+          grid: { drawOnChartArea: false },
+        },
+      },
+      plugins: {
+        legend: {
+          labels: {
+            color: "#d9f4ff",
+            // Solo se listan en la leyenda las 2 curvas de la sesión más reciente (resaltada);
+            // las sesiones previas siguen visibles en el gráfico para evidenciar la tendencia.
+            filter: (item, data) => Boolean(data.datasets[item.datasetIndex]?.destacar),
+          },
+        },
+        tooltip: {
+          callbacks: {
+            label: (contexto) => `${contexto.dataset.metrica}: ${contexto.formattedValue}${contexto.dataset.metrica === "RMSSD" ? " ms" : ""} (${contexto.dataset.label.split("· ")[1]})`,
+          },
+        },
+      },
+    },
+  });
 }
 
 function mostrarResultados(registro) {
@@ -1086,6 +1182,21 @@ document.addEventListener("DOMContentLoaded", () => {
   const botonExportarDirecto = document.querySelector("#btn-exportar-directo");
   if (botonExportarDirecto) botonExportarDirecto.addEventListener("click", exportarMuestreoCSV);
 
+  const botonVerGrafico = document.querySelector("#btn-ver-grafico");
+  if (botonVerGrafico) {
+    botonVerGrafico.addEventListener("click", () => renderizarGraficoComparativo());
+  }
+
+  const botonVerGraficoSidebar = document.querySelector("#btn-ver-grafico-sidebar");
+  if (botonVerGraficoSidebar) {
+    botonVerGraficoSidebar.addEventListener("click", () => {
+      const ultimoRegistro = registroHistorial.at(-1);
+      if (ultimoRegistro) mostrarDashboardFinal(ultimoRegistro);
+      else document.querySelector("#results-dialog")?.showModal();
+      renderizarGraficoComparativo();
+    });
+  }
+
   const textosInformativos = {
     coherencia: ["Coherencia cardíaca", "Estado de sincronización fisiológica donde el ritmo cardíaco se vuelve una onda armónica y fluida."],
     rr: ["Intervalo RR", "El tiempo en milisegundos entre cada latido consecutivo del corazón."],
@@ -1114,6 +1225,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // el reinicio de estado ocurra sin importar cómo se cierre el diálogo (Esc incluida)
   // y así nunca se quede la sesión bloqueada en la fase de resultados.
   document.querySelector("#results-dialog")?.addEventListener("close", () => {
+    if (faseActual !== estadoFases.RESULTADOS) return;
     faseActual = estadoFases.ESPERA;
     document.querySelector("#session-hud")?.classList.add("hidden");
     document.querySelector("#phase-overlay")?.classList.add("hidden");
